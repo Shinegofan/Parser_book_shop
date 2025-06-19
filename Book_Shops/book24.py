@@ -1,14 +1,17 @@
 import requests
 from bs4 import BeautifulSoup
-from model import Book
 import re
+import sqlite3
 
 class Book24:
     def __init__(self,name):
         self.name=name
+
+
     def parser_book24(self,page:int):
+        connection=sqlite3.connect("my_database.db")
+        cursor=connection.cursor()
         url = f"https://book24.ru/search/page-{page}/?q={self.name}"
-        list_books = []
         headers = {"User-Agent": "Chrome/134.0.6998.179"}
         r = requests.get(url=url, headers=headers)
         soup = BeautifulSoup(r.text, "lxml")
@@ -28,16 +31,13 @@ class Book24:
                     # Ссылка на книгу
                     link_tag = product_card.find("a", class_="product-card__name")
                     link = f"https://book24.ru{link_tag['href']}" if link_tag and 'href' in link_tag.attrs else "Ссылка не указана"
-                    list_books.append(Book(title=title,
-                                           author=author,
-                                           pubhouse=pubhouse,
-                                           price=price,
-                                           link=link))
+                    cursor.execute(f"insert into Parser (title,author,pubhouse,price,link) VALUES (?, ?, ?, ?, ?)",(title, author, pubhouse, price, link))
+                    connection.commit()
                 except Exception as e:
                     print(f"Ошибка при парсинге: {e}")
             else:
                 print("Карточка товара не найдена.")
-        return list_books
+
 
     def get_total_pages(self,soup):
         desc_div = soup.find("div", class_="search-page__desc")
@@ -62,7 +62,6 @@ class Book24:
         return pages
 
     def full_book24(self):
-        full_list_books = []
         url = f"https://book24.ru/search/?q={self.name}"
         headers = {"User-Agent": "Chrome/134.0.6998.179"}
         r = requests.get(url=url, headers=headers)
@@ -70,6 +69,4 @@ class Book24:
         soup = BeautifulSoup(r.text, "lxml")
         pages = self.get_total_pages(soup)
         for page in range(1, pages + 1):
-            full_list_books.extend(x for x in self.parser_book24(page))
-        return full_list_books
-
+            self.parser_book24(page)

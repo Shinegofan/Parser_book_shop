@@ -1,13 +1,14 @@
 import requests
 from bs4 import BeautifulSoup
-from model import Book
+import sqlite3
 
 class Gorod:
     def __init__(self,name):
         self.name=name
     def parser_gorod(self,page:int):
+        connection = sqlite3.connect("my_database.db")
+        cursor = connection.cursor()
         url=f"https://www.chitai-gorod.ru/search?phrase={self.name}&page={page}"
-        list_books = []
         headers = {"User-Agent": "Chrome/134.0.6998.179"}
         r = requests.get(url=url, headers=headers)
         soup = BeautifulSoup(r.text, "lxml")
@@ -27,16 +28,13 @@ class Gorod:
                     # Ссылка на книгу
                     link_tag = product_card.find("a", class_="product-card__title")
                     link = f"https://www.chitai-gorod.ru{link_tag['href']}" if link_tag and 'href' in link_tag.attrs else "Ссылка не указана"
-                    list_books.append(Book(title=title,
-                                           author=author,
-                                           pubhouse=pubhouse,
-                                           price=price,
-                                           link=link))
+                    cursor.execute(f"insert into Parser (title,author,pubhouse,price,link) VALUES (?, ?, ?, ?, ?)",(title, author, pubhouse, price, link))
+                    connection.commit()
                 except Exception as e:
                     print(f"Ошибка при парсинге: {e}")
             else:
                 print("Карточка товара не найдена.")
-        return list_books
+
 
     def get_total_pages(self,soup):
         pagination_list = soup.find("ul", class_="chg-app-pagination__button-list")
@@ -61,7 +59,6 @@ class Gorod:
             return 1
 
     def full_gorod(self):
-        full_list_books = []
         url=f"https://www.chitai-gorod.ru/search?phrase={self.name}"
         headers = {"User-Agent": "Chrome/134.0.6998.179"}
         r = requests.get(url=url, headers=headers)
@@ -69,6 +66,5 @@ class Gorod:
         soup = BeautifulSoup(r.text, "lxml")
         pages = self.get_total_pages(soup)
         for page in range(1, pages + 1):
-            full_list_books.extend(x for x in self.parser_gorod(page))
-        return full_list_books
+            self.parser_gorod(page)
 
